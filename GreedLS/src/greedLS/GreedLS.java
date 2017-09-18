@@ -299,64 +299,64 @@ public class GreedLS {
 	 * @param b: budget
 	 */
 	  public Map<Integer,Integer> FWR(int vid0, int t0, int b) throws Exception{
-		  Map<Integer,Integer> Q = new HashMap<Integer,Integer>();
-		  Map<Integer,Integer> result = new HashMap<Integer,Integer>();
-		  Q.put(vid0,  t0);
-		  result.put(vid0, t0);
-		  while(!Q.isEmpty()){
-			  Map.Entry<Integer, Integer> entryEA = getEarliestArriveEntry(Q);
-			  int vi = entryEA.getKey();
-			  int eai = entryEA.getValue();
-			  Q.remove(vi, eai);
-			  if(GreedLS.graph.adjList.adjacencyList.containsKey(vi)){
-				  for(Map.Entry<Integer, Pair<Integer,Integer>> vjpair : 
-				      GreedLS.graph.adjList.adjacencyList.get(vi).entrySet()){
-					  /** Reduce the search space, search from V'' 
-					   * Inherit technique.
-					   */
-					  if(this.verticeEALD_map.containsKey(vjpair.getKey())){ 
-						  int eaj = eai + (vjpair.getValue()).getLeft();
-						  /** Not apply EALD-pruning yet. */
-						  if(eaj < t0+b){//----within the budget
-							  double vj_target_dist = this.EarthDistance(
-							                          GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lat, 
-													  GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lng, 
-													  GreedLS.graph.vertices.get(vjpair.getKey()).lat, 
-													  GreedLS.graph.vertices.get(vjpair.getKey()).lng);
-							  /** Euclidean distance based pruning (or A* pruning or FWEST-pruning. */
-							  if(eaj+vj_target_dist*GreedLS.speedMIN < t0+b){
-								  EALDbuffer_MapValue buffer = new EALDbuffer_MapValue();
-								  if(this.EALDBuffer.containsKey(vjpair.getKey())){
-									  buffer = this.EALDBuffer.get(vjpair.getKey());
-								  }
-								  /** Buffer pruning */
-								  if((eaj-GreedLS.Idx2TimeCost(QuerySetting.startTime)+buffer.LDCost<=b)){
-									  if(!result.containsKey(vjpair.getKey())){
-										  result.put(vjpair.getKey(), eaj);
-										  if(!Q.containsKey(vjpair.getKey())) Q.put(vjpair.getKey(), eaj);
-										  else{
-											  int old_eaj = Q.get(vjpair.getKey());
-											  if(old_eaj>eaj) Q.replace(vjpair.getKey(), eaj);
-										  }
-									  }
-									  else{
-										  int old_eaj = result.get(vjpair.getKey());
-										  if(old_eaj > eaj){
-											  result.replace(vjpair.getKey(), old_eaj, eaj);
-											  if(Q.containsKey(vjpair.getKey())){
-												  Q.replace(vjpair.getKey(), eaj);
-											  }
-										  }
-									  }
-								  }//----buffer pruning
-							  }//----A* pruning
-						  }  
-					  }
-				  }
-			  }
+	         Map<Integer,Integer> Q = new HashMap<Integer,Integer>();
+	         Map<Integer,Integer> result = new HashMap<Integer,Integer>();
+	         Q.put(vid0,  t0);
+	         result.put(vid0, t0);
+	         while(!Q.isEmpty()){
+	            Map.Entry<Integer, Integer> entryEA = getEarliestArriveEntry(Q);
+		    int vi = entryEA.getKey();
+		    int eai = entryEA.getValue();
+		    Q.remove(vi, eai);
+		    if(GreedLS.graph.adjList.adjacencyList.containsKey(vi)){
+		       for(Map.Entry<Integer, Pair<Integer,Integer>> vjpair : 
+		           GreedLS.graph.adjList.adjacencyList.get(vi).entrySet()){
+			  /** Reduce the search space, search from V'' 
+			   * Inherit technique.
+			   */
+		    	  if(this.verticeEALD_map.containsKey(vjpair.getKey())){ 
+		             int eaj = eai + (vjpair.getValue()).getLeft();
+			     /** Not apply EALD-pruning yet. */
+			     if(eaj < t0+b){//----within the budget
+				  double vj_target_dist = this.EarthDistance(
+			                 GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lat, 
+			                 GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lng, 
+				         GreedLS.graph.vertices.get(vjpair.getKey()).lat, 
+				         GreedLS.graph.vertices.get(vjpair.getKey()).lng);
+				         /** Euclidean distance based pruning (or A* pruning or FWEST-pruning. */
+				         if(eaj+vj_target_dist*GreedLS.speedMIN < t0+b){
+				            EALDbuffer_MapValue buffer = new EALDbuffer_MapValue();
+					    if(this.EALDBuffer.containsKey(vjpair.getKey())){
+					       buffer = this.EALDBuffer.get(vjpair.getKey());
+					    }
+					    /** Buffer pruning */
+					    if((eaj-GreedLS.Idx2TimeCost(QuerySetting.startTime)+buffer.LDCost<=b)){
+					       if(!result.containsKey(vjpair.getKey())){
+					          result.put(vjpair.getKey(), eaj);
+					          if(!Q.containsKey(vjpair.getKey())) Q.put(vjpair.getKey(), eaj);
+					          else{
+					 	     int old_eaj = Q.get(vjpair.getKey());
+						     if(old_eaj>eaj) Q.replace(vjpair.getKey(), eaj);
+					          }
+					        }
+					       else{
+					          int old_eaj = result.get(vjpair.getKey());
+					          if(old_eaj > eaj){
+					             result.replace(vjpair.getKey(), old_eaj, eaj);
+					             if(Q.containsKey(vjpair.getKey())){
+					                Q.replace(vjpair.getKey(), eaj);
+					             }
+					          }
+			                       }
+			                   }//----buffer pruning
+					}//----A* pruning
+				}  
+			}
+		   }
+		}
 			  
-		  }//end while
-		  return result;
+	     }//end while
+	     return result;
 	  }
 	  
 	  
@@ -372,76 +372,76 @@ public class GreedLS {
 	   * @param b: budget
 	   */
 	  public Map<Integer,Integer> BWR(int vidN, int t0, int b) throws Exception{
-		  Map<Integer,Integer> Q = new HashMap<Integer,Integer>();
-		  Map<Integer,Integer> result = new HashMap<Integer,Integer>();
-		  int tN = t0 + b;
-		  Q.put(vidN,  tN);
-		  result.put(vidN, t0+b);
-		  while(!Q.isEmpty()){
-			  Map.Entry<Integer, Integer> entryLD = getLatestDepartureEntry(Q);
-			  int vj = entryLD.getKey();
-			  int ldj = entryLD.getValue();
-			  Q.remove(vj, ldj);
-			  if(GreedLS.graph.adjList.reverse_adjacencyList.containsKey(vj)){
-				  for(Map.Entry<Integer, Pair<Integer,Integer>> vipair : 
-				      GreedLS.graph.adjList.reverse_adjacencyList.get(vj).entrySet()){ //reverse adjacency list
-					  int vi = vipair.getKey();
-					  /** Reduce the search space, search from V'' 
-					   * Inherit technique.
-					   */
-					  if(this.verticeEALD_map.containsKey(vi)){ 
-						/**
-						 * To find maximum time index Taok of the list 
-						 * L=vipair.getRight() such that L[Taok]+Taok <= ldj, 
-						 * and then ldi=ldj-L[Taok].
-						 */
-						  int Taok = ldj;
-						  for(; Taok+ vipair.getValue().getLeft()<ldj; Taok=Taok-GreedLS.costGranularity);
-						  int ldi = ldj - vipair.getValue().getLeft();
-						  
-						  /** Not apply EALD-pruning yet. */
-						  if(ldi > t0){ //---within the budget
-							  double source_vi_dist = this.EarthDistance(
-							                          GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lat, 
-													  GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lng, 
-													  GreedLS.graph.vertices.get(vi).lat, 
-													  GreedLS.graph.vertices.get(vi).lng);
-							
-							  /** Euclidean distance based pruning (or A* pruning or FWEST-pruning. */
-							  if(ldi - source_vi_dist*GreedLS.speedMIN > t0){
-								  EALDbuffer_MapValue buffer = new EALDbuffer_MapValue();
-								  if(this.EALDBuffer.containsKey(vipair.getKey())){
-									  buffer = this.EALDBuffer.get(vipair.getKey());
-								  }
-								  /** Buffer pruning */
-								  if((buffer.EACost + (t0+b-ldi)<=b)){
-									  if(!result.containsKey(vipair.getKey())){
-										  result.put(vipair.getKey(), ldi);
-										  if(!Q.containsKey(vipair.getKey())) Q.put(vipair.getKey(), ldi);
-										  else{
-											  int old_ldi = result.get(vipair.getKey());
-											  if(old_ldi < ldi) Q.replace(vipair.getKey(), ldi);
-										  }
-									  }
-									  else{
-										  int old_ldi = result.get(vipair.getKey());
-										  if(old_ldi < ldi){
-											  result.replace(vipair.getKey(), old_ldi, ldi);
-											  if(Q.containsKey(vipair.getKey())){
-												  Q.replace(vipair.getKey(), ldi);
-											  }
-										  }
-									  }
-								  }//----buffer pruning
-							  }//---A* pruning
-							  
-						  }//---within the budget
-					  }
+	     Map<Integer,Integer> Q = new HashMap<Integer,Integer>();
+	     Map<Integer,Integer> result = new HashMap<Integer,Integer>();
+	     int tN = t0 + b;
+	     Q.put(vidN,  tN);
+	     result.put(vidN, t0+b);
+	     while(!Q.isEmpty()){
+		  Map.Entry<Integer, Integer> entryLD = getLatestDepartureEntry(Q);
+		  int vj = entryLD.getKey();
+		  int ldj = entryLD.getValue();
+		  Q.remove(vj, ldj);
+		  if(GreedLS.graph.adjList.reverse_adjacencyList.containsKey(vj)){
+	             for(Map.Entry<Integer, Pair<Integer,Integer>> vipair : 
+		         GreedLS.graph.adjList.reverse_adjacencyList.get(vj).entrySet()){ //reverse adjacency list
+		         int vi = vipair.getKey();
+		         /** Reduce the search space, search from V'' 
+			  * Inherit technique.
+			  */
+			  if(this.verticeEALD_map.containsKey(vi)){ 
+			 /**
+			  * To find maximum time index Taok of the list 
+			  * L=vipair.getRight() such that L[Taok]+Taok <= ldj, 
+			  * and then ldi=ldj-L[Taok].
+			  */
+			  int Taok = ldj;
+			  for(; Taok+ vipair.getValue().getLeft()<ldj; Taok=Taok-GreedLS.costGranularity);
+			  int ldi = ldj - vipair.getValue().getLeft();
+			
+			  /** Not apply EALD-pruning yet. */
+			  if(ldi > t0){ //---within the budget
+			     double source_vi_dist = this.EarthDistance(
+			                             GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lat, 
+			                             GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lng, 
+						     GreedLS.graph.vertices.get(vi).lat, 
+						     GreedLS.graph.vertices.get(vi).lng);
+						
+			     /** Euclidean distance based pruning (or A* pruning or FWEST-pruning. */
+			     if(ldi - source_vi_dist*GreedLS.speedMIN > t0){
+				  EALDbuffer_MapValue buffer = new EALDbuffer_MapValue();
+				  if(this.EALDBuffer.containsKey(vipair.getKey())){
+			             buffer = this.EALDBuffer.get(vipair.getKey());
 				  }
-			  }
+				  /** Buffer pruning */
+				  if((buffer.EACost + (t0+b-ldi)<=b)){
+				     if(!result.containsKey(vipair.getKey())){
+				        result.put(vipair.getKey(), ldi);
+				        if(!Q.containsKey(vipair.getKey())) Q.put(vipair.getKey(), ldi);
+				        else{
+					  int old_ldi = result.get(vipair.getKey());
+				          if(old_ldi < ldi) Q.replace(vipair.getKey(), ldi);
+					}
+				      }
+				      else{
+				          int old_ldi = result.get(vipair.getKey());
+					  if(old_ldi < ldi){
+					     result.replace(vipair.getKey(), old_ldi, ldi);
+					     if(Q.containsKey(vipair.getKey())){
+					        Q.replace(vipair.getKey(), ldi);
+					     }
+					   }
+				      }
+				 }//----buffer pruning
+		             }//---A* pruning
 			  
-		  }//end while
-		  return result;
+			}//---within the budget
+		      }
+		  }
+              }
+	 
+	    }//end while
+	    return result;
 	  }
 	  
 	  
@@ -561,12 +561,12 @@ public class GreedLS {
 			  if(!gap1.isEmpty()){
 				  if(GreedLS.graph.adjList.adjacencyList.get(gap1.end)!=null){
 					  if(GreedLS.graph.adjList.adjacencyList.get(gap1.end).get(gap2.start)!=null){
-						  int value = GreedLS.graph.adjList.adjacencyList.get(gap1.end).get(gap2.start).getRight();
-						  int cost = GreedLS.graph.adjList.adjacencyList.get(gap1.end).get(gap2.start).getLeft();
-						  timegap += cost;
-						  arcList.add(new solutionArc(gap1.end, gap2.start, cost,value));
-						  average += (double)value/(double)cost;
-						  idx++;
+					     int value = GreedLS.graph.adjList.adjacencyList.get(gap1.end).get(gap2.start).getRight();
+					     int cost = GreedLS.graph.adjList.adjacencyList.get(gap1.end).get(gap2.start).getLeft();
+					     timegap += cost;
+					     arcList.add(new solutionArc(gap1.end, gap2.start, cost,value));
+					     average += (double)value/(double)cost;
+					     idx++;
 					  }
 				  }
 			  }
