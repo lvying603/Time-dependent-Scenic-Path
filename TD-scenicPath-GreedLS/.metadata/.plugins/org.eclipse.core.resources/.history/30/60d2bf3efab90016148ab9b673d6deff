@@ -1,8 +1,0 @@
-package greedLS;
-
-public class QuerySetting {
-	public static int SourceVexID = 233; 
-	public static int TargetVexID = 757; 
-	public static int startTime = 1 ;
-	public static int budgetTime = 242632;
-}
