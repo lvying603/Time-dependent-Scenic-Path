@@ -1,0 +1,168 @@
+package greedLS;
+
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
+
+import javax.net.ssl.HttpsURLConnection;
+
+public class Http {
+
+	private final String USER_AGENT = "Mozilla/5.0";
+	
+	//public double result_SPDist = 0.0;
+	//public double result_SPTimeCost = 0.0;
+	//public int result_SPValue = 0;
+	//public List<Integer> result_VexIDList = new ArrayList<Integer>();
+	
+	
+	private Gap getResponse(String resp, int vstartid, int vendid, int starttime){
+		Gap gap = new Gap();
+		if(resp.isEmpty() || resp.length()==0 || resp=="") { //in case of no response 
+			Map<Integer, List<Pair<Integer,Integer>>> targetList = GreedLS.graph.adjList.adjacencyList.get(vstartid);
+			if(targetList!=null && targetList.get(vendid)!=null){ //one arc in the graph
+				Pair<Integer,Integer> cost_value_pair = targetList.get(vendid).get(starttime);
+				gap.start = vstartid;
+				gap.end = vendid;
+				gap.actualStarttime = GreedLS.Idx2TimeCost(starttime);
+				gap.collectedValue = cost_value_pair.getRight();
+				gap.SPCost = cost_value_pair.getLeft();
+				return gap;
+			}
+			else return gap; //no reachable path
+		}
+		else {
+				gap.start = vstartid;
+				gap.end = vendid;
+				StringTokenizer sT = new StringTokenizer(resp, ";");
+				double spcost = Double.parseDouble(sT.nextToken());
+				//gap.SPCost = (int)(spcost * 60 * 1000); //minute -> millisecond, obtained from Shortest Path API
+				gap.SPCost = 0;
+				gap.collectedValue = 0;
+				gap.SPDist = Double.parseDouble(sT.nextToken());
+				int preVID, VID = -1;
+				gap.actualStarttime = GreedLS.Idx2TimeCost(starttime);
+				int stampstamp = gap.actualStarttime; //used for locating the stampstamp
+				while(sT.hasMoreTokens()){
+					preVID = VID;
+					VID = Integer.parseInt((sT.nextToken()).substring(1));
+					gap.vexIDList.add(VID);
+					if(preVID!=-1) { 
+						List<Pair<Integer,Integer>> cost_value_list = (List<Pair<Integer,Integer>>) GreedLS.graph.adjList.adjacencyList.get(preVID).get(VID);
+						if(cost_value_list!= null) {
+							int valueTimeIdx = GreedLS.TimeCost2Idx(stampstamp);
+							if(valueTimeIdx>1){
+								int ying=0;
+							}
+							gap.collectedValue += (cost_value_list.get(valueTimeIdx)).getRight();
+							int costTimeIdx = GreedLS.TimeCost2Idx(stampstamp);
+							gap.SPCost += (cost_value_list.get(costTimeIdx)).getLeft();
+							stampstamp += gap.SPCost;
+						}
+					}
+				}
+				return gap;
+		}
+	}
+	
+	// HTTP GET request
+	public Gap sendGet(Vertex vstart, Vertex vend, int starttime) throws Exception {
+		String url = "http://128.125.163.86/TDSP_Servlet_Node/TDSPQuerySuper6?";
+		url += "start=" + Double.toString(vstart.getLat()) + "," + Double.toString(vstart.getLng()) + "&end=" + Double.toString(vend.getLat()) + "," + Double.toString(vend.getLng())
+				+ "&time=" + Integer.toString(starttime) + "&day=Monday";
+		
+		URL obj = new URL(url);
+		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+
+		// optional default is GET
+		con.setRequestMethod("GET");
+
+		//add request header
+		con.setRequestProperty("User-Agent", USER_AGENT);
+
+		//int responseCode = con.getResponseCode();
+		//System.out.println("\nSending 'GET' request to URL : " + url);
+		//System.out.println("Response Code : " + responseCode);
+
+		BufferedReader in = new BufferedReader(
+		        new InputStreamReader(con.getInputStream()));
+		String inputLine;
+		StringBuffer response = new StringBuffer();
+
+		while ((inputLine = in.readLine()) != null) {
+			response.append(inputLine);
+		}
+		in.close();
+
+		//print result
+		//System.out.println(response.toString());
+		return getResponse(response.toString(), vstart.getId(), vend.getId(), starttime);
+		/*if(response.length()!=0) {
+			return getResponse(response.toString(), starttime);
+		}
+		else {
+			Map<Integer, List<Pair<Integer,Integer>>> targetList = GreedLS.graph.adjList.adjacencyList.get(vstart);
+			Gap gap = new Gap();
+			if(targetList!=null && targetList.get(vend)!=null){
+				Pair<Integer,Integer> cost_value_pair = targetList.get(vend).get(starttime);
+				gap.start = vstart.getId();
+				gap.end = vend.getId();
+				gap.actualStarttime = GreedLS.Idx2TimeCost(starttime);
+				gap.collectedValue = cost_value_pair.getRight();
+				gap.SPCost = cost_value_pair.getLeft();
+				return gap;
+			}
+			return gap;
+		}*/
+
+	}
+	
+	// HTTP POST request
+	public void sendPost() throws Exception {
+
+		String url = "https://selfsolve.apple.com/wcResults.do";
+		URL obj = new URL(url);
+		HttpsURLConnection con = (HttpsURLConnection) obj.openConnection();
+
+		//add reuqest header
+		con.setRequestMethod("POST");
+		con.setRequestProperty("User-Agent", USER_AGENT);
+		con.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
+
+		String urlParameters = "sn=C02G8416DRJM&cn=&locale=&caller=&num=12345";
+		
+		// Send post request
+		con.setDoOutput(true);
+		DataOutputStream wr = new DataOutputStream(con.getOutputStream());
+		wr.writeBytes(urlParameters);
+		wr.flush();
+		wr.close();
+
+		int responseCode = con.getResponseCode();
+		System.out.println("\nSending 'POST' request to URL : " + url);
+		System.out.println("Post parameters : " + urlParameters);
+		System.out.println("Response Code : " + responseCode);
+
+		BufferedReader in = new BufferedReader(
+		        new InputStreamReader(con.getInputStream()));
+		String inputLine;
+		StringBuffer response = new StringBuffer();
+
+		while ((inputLine = in.readLine()) != null) {
+			response.append(inputLine);
+		}
+		in.close();
+		
+		//print result
+		System.out.println(response.toString());
+
+	}
+
+
+}

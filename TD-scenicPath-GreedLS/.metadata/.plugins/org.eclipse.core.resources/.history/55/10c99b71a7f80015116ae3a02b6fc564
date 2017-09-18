@@ -1,0 +1,616 @@
+package greedLS;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.Vector;
+import java.net.URL;
+import java.net.HttpURLConnection;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.DataOutputStream;
+import java.io.FileWriter;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.util.Comparator;
+//import javax.net.ssl.HttpsURLConnection;
+
+
+public class GreedLS {
+	//private final static String adjFile = "/Users/yinglu/Dropbox/TD scenic path - exp/Dataset/TDCostValueArcs.txt";
+	private final static String adjFile = "C:/YingLu/PhD research/Scenic path/TDexp/Dataset/TDdatasetMatched/TDCostValueArcs.txt";
+	//private final static String nodeFile = "/Users/yinglu/Dropbox/TD scenic path - exp/Dataset/Nodes.csv";
+	private final static String nodeFile = "C:/YingLu/PhD research/Scenic path/TDexp/Dataset/TDdatasetMatched/Nodes.csv";
+	private static PrintWriter outputWriter;
+	
+	public final static Graph graph = new Graph(adjFile, nodeFile);
+	public final static int costGranularity = 1000*60*15; //15 mins
+	public final static int valueGranularity = 1000*60*15; //15 mins
+	public static int iterationNUM = 0;
+	public static int newBudget = 0;
+	public static int costMAX = 1285272; //-1; //used for cost normalization, calculated during graph loading
+	public static int valueMAX = 1431; //-1; //used for value normalization, calculated during graph loading
+	public static double speedMAX = 662.7946059169074; // -1.0; //used for Euclidean distance pruning, millisec
+	public static double speedMIN = 15.615478233558985; //Double.MAX_VALUE;
+	public static double speedAVG = 327.81159775135086;
+	private static int curMaxScenicValue = 0 - Integer.MAX_VALUE;
+	
+	//private Http http = new Http();
+	private FindTDSP findTDSP = new FindTDSP();
+	
+	Solution solution = new Solution(); //always the current solution
+	public long programStartTime = 0;
+	public long programCurTime = 0;
+	private static long calculateCandArcTime = 0;
+	//private static long calculateCandidateArcSet_viaTDSPTime = 0;
+	private static long httpSPTime = 0;
+	
+	private Set<Arc> CurIntersectionArc; //G'
+	private Map<Integer,Pair<Integer,Integer>> CurverticeEALD_submap = new HashMap<Integer,Pair<Integer,Integer>>(); //V'
+	public Map<Integer,Pair<Integer,Integer>> verticeEALD_map = new HashMap<Integer,Pair<Integer,Integer>>(); //V''
+	public Set<Arc> CAS = new HashSet<Arc>(); //G''
+	//public Set<Pair<Integer,Integer>> CAS = new HashSet<Pair<Integer,Integer>>(); //G''
+	public Map<Integer,Pair<Integer,Integer>> tempVerticeEALD_map = new HashMap<Integer,Pair<Integer,Integer>>(); //V''
+	public Set<Arc> tempCAS = new HashSet<Arc>(); //G''
+	//public Set<Pair<Integer,Integer>> tempCAS = new HashSet<Pair<Integer,Integer>>(); //G''
+	
+
+	/**
+	 * convert timecost to time index
+	 * @param timecost: milliseconds from 6:00am
+	 * @return
+	 */
+	public static int TimeCost2Idx(int timecost){
+		int timeIdx = timecost/costGranularity;
+		if(timeIdx>=60) timeIdx = 59;
+		if(timeIdx<0) timeIdx = 0;
+		return timeIdx;
+	}
+	
+	
+	
+	public static int Idx2TimeCost(int idx){
+		int timecost = idx*costGranularity;
+		return timecost;
+	}
+	
+	
+	public double EarthDistance(double plat, double plng, double qlat, double qlng) //earth distance between two points degree(-90,90) (-180, 180)
+	{
+		double PI = 3.1415926;
+		double distpq = 6371 * 2 * Math.asin(Math.sqrt(Math.pow(Math.sin((plat - qlat)*PI / 180 / 2), 2) + Math.cos(plat*PI / 180) * Math.cos(qlat*PI / 180) *Math.pow(Math.sin((plng - qlng)*PI / 180 / 2), 2)));
+		distpq = distpq * 1000; //kilometers --> meters
+		return distpq;
+	}
+
+	
+	
+	/**
+	   * Initialize CAS and verticeEALD_map
+	   * @param graphArcList
+	   */
+	  public void copyFromGraph(){
+		  Arc arc;
+		  int i = 0;
+		  for(Map.Entry<Integer, Map<Integer, List<Pair<Integer,Integer>>> > entry : GreedLS.graph.adjList.adjacencyList.entrySet()){
+			  
+			  for(Map.Entry<Integer, List<Pair<Integer,Integer>>> pair : entry.getValue().entrySet()){
+				  i++;
+				  //double dist_sources = EarthDistance(GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lat, GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lng, GreedLS.graph.vertices.get(entry.getKey()).lat, GreedLS.graph.vertices.get(entry.getKey()).lng);
+				  //double dist_targets = EarthDistance(GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lat, GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lng, GreedLS.graph.vertices.get(pair.getKey()).lat, GreedLS.graph.vertices.get(pair.getKey()).lng);
+				  //double dist_arc = EarthDistance(GreedLS.graph.vertices.get(entry.getKey()).lat, GreedLS.graph.vertices.get(entry.getKey()).lng, GreedLS.graph.vertices.get(pair.getKey()).lat, GreedLS.graph.vertices.get(pair.getKey()).lng);
+				  //if((dist_sources+dist_targets+dist_arc)*speedMIN <= QuerySetting.budgetTime){
+					  arc = new Arc();
+					  arc.source = entry.getKey();
+					  arc.target = pair.getKey();
+					  arc.cost_value_list = pair.getValue();
+					  this.CAS.add(arc);
+					  
+					  if(!this.verticeEALD_map.containsKey(arc.source)){
+						  this.verticeEALD_map.put(arc.source, new Pair<Integer,Integer>(GreedLS.Idx2TimeCost(QuerySetting.startTime), GreedLS.Idx2TimeCost(QuerySetting.startTime)+QuerySetting.budgetTime));
+					  }
+					  if(!this.verticeEALD_map.containsKey(arc.target)){
+						  this.verticeEALD_map.put(arc.target, new Pair<Integer,Integer>(GreedLS.Idx2TimeCost(QuerySetting.startTime), GreedLS.Idx2TimeCost(QuerySetting.startTime)+QuerySetting.budgetTime));
+					  }
+				  //}
+				  //---calculate the max numbers
+				  /*double dist = this.EarthDistance(GreedLS.graph.vertices.get(arc.source).getLat(), GreedLS.graph.vertices.get(arc.source).getLng(), GreedLS.graph.vertices.get(arc.target).getLat(), GreedLS.graph.vertices.get(arc.target).getLng());
+				  int maxVal=-1, maxCos = -1, minCos=Integer.MAX_VALUE;
+				  for(Pair<Integer,Integer> cos_val: arc.cost_value_list){
+					  if(maxCos<cos_val.getLeft()) maxCos = cos_val.getLeft();
+					  if(maxVal<cos_val.getRight()) maxVal = cos_val.getRight();
+					  if(minCos>cos_val.getLeft()) minCos = cos_val.getLeft();
+				  }
+				  if(GreedLS.costMAX < maxCos) GreedLS.costMAX = maxCos;
+				  if(GreedLS.valueMAX < maxVal) GreedLS.valueMAX = maxVal;
+				  double maxspeed = maxCos/dist;
+				  if(GreedLS.speedMAX < maxspeed) GreedLS.speedMAX = maxspeed;
+				  double minspeed = minCos/dist;
+				  if(GreedLS.speedMIN > minspeed) GreedLS.speedMIN = minspeed;
+				  GreedLS.speedAVG += maxspeed;*/
+				  
+				  }
+			  }
+		  //System.out.println("speedMIN = " + GreedLS.speedMIN);
+		  //GreedLS.speedAVG = GreedLS.speedAVG / this.CAS.size();
+		  //System.out.println("total arc number: " + this.CAS.size() + "\ttotal vertic number: " + this.verticeEALD_map.size() + "\ti: " + i);
+	  }
+	  
+	  
+	  
+	  public void initSolution() throws Exception{
+		  Gap g = new Gap();
+		  g = findTDSP.tdsp(QuerySetting.SourceVexID, QuerySetting.TargetVexID, QuerySetting.startTime);
+		  this.solution.gapList.add(g);
+		  QuerySetting.SPCost = g.SPCost;
+		  QuerySetting.SPValue = g.collectedValue;
+	  }
+	  
+	  
+	  
+	  private Map.Entry<Integer, Integer> getEarliestArriveEntry(Map<Integer,Integer> map){
+		  Map.Entry<Integer, Integer> minEA = null;
+		  for (Map.Entry<Integer, Integer> entry : map.entrySet()) {
+		      if (minEA == null || minEA.getValue() > entry.getValue()) {
+		    	  minEA = entry;
+		      }
+		  }
+		  return minEA;
+	  }
+	  
+	  
+	  private Map.Entry<Integer, Integer> getLatestDepartureEntry(Map<Integer,Integer> map){
+		  Map.Entry<Integer, Integer> maxLD = null;
+		  for (Map.Entry<Integer, Integer> entry : map.entrySet()) {
+		      if (maxLD == null || maxLD.getValue() < entry.getValue()) {
+		    	  maxLD = entry;
+		      }
+		  }
+		  return maxLD;
+	  }
+	  
+	  
+	  
+	  
+	  
+	  public void calculateCandidateArcSet_viaTDSP(Gap gap, int b)throws Exception{
+		  //Map<Integer,Integer> FWR_result = FWR(gap.start, gap.actualStarttime, b);
+		  //Map<Integer,Integer> BWR_result = BWR(gap.end, gap.actualStarttime, b);
+		  
+		  Map<Integer,Gap> candVertices= findTDSP.tdspGreedLS(gap.start, this.verticeEALD_map, gap.actualStarttime, b);
+		  
+		  
+		  /*if(this.CurverticeEALD_submap!=null) this.CurverticeEALD_submap.clear();
+		  if(this.CurIntersectionArc!=null) this.CurIntersectionArc.clear();
+		  
+		  //calculate the intersection vertices
+		  this.CurverticeEALD_submap = new HashMap<Integer,Pair<Integer,Integer>>(); //V'
+		  for(Map.Entry<Integer, Integer> entryf : FWR_result.entrySet()){
+			  if(BWR_result.containsKey(entryf.getKey())){
+				  int ld = BWR_result.get(entryf.getKey());
+				  if(entryf.getValue() <= ld){
+					  this.CurverticeEALD_submap.put(entryf.getKey(), new Pair<Integer,Integer>(entryf.getValue(),ld));
+				  }
+			  }
+		  }
+		  this.tempVerticeEALD_map.putAll(this.CurverticeEALD_submap); //if exist already, then update value automatically
+		  
+		  //calculate the intersection arcs 
+		  this.CurIntersectionArc = new HashSet<Arc>(); //G'
+		  for(Map.Entry<Integer,Pair<Integer,Integer>> ventry : this.CurverticeEALD_submap.entrySet()){
+			  for(Map.Entry<Integer,List<Pair<Integer,Integer>>> target : GreedLS.graph.adjList.adjacencyList.get(ventry.getKey()).entrySet()){
+				  Arc arc = new Arc();
+				  arc.source = ventry.getKey();
+				  arc.target = target.getKey();
+				  arc.cost_value_list = target.getValue();
+				  if(this.CurverticeEALD_submap.containsKey(target.getKey())){
+					  this.CurIntersectionArc.add(arc);
+				  }
+			  }
+		  }
+		  this.tempCAS.addAll(this.CurIntersectionArc);*/
+	  }
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  public void calculateCandidateArcSet(Gap gap, int b)throws Exception{
+		  Map<Integer,Integer> FWR_result = FWR(gap.start, gap.actualStarttime, b);
+		  Map<Integer,Integer> BWR_result = BWR(gap.end, gap.actualStarttime, b);
+		  if(this.CurverticeEALD_submap!=null) this.CurverticeEALD_submap.clear();
+		  if(this.CurIntersectionArc!=null) this.CurIntersectionArc.clear();
+		  
+		  //calculate the intersection vertices
+		  this.CurverticeEALD_submap = new HashMap<Integer,Pair<Integer,Integer>>(); //V'
+		  for(Map.Entry<Integer, Integer> entryf : FWR_result.entrySet()){
+			  if(BWR_result.containsKey(entryf.getKey())){
+				  int ld = BWR_result.get(entryf.getKey());
+				  if(entryf.getValue() <= ld){
+					  this.CurverticeEALD_submap.put(entryf.getKey(), new Pair<Integer,Integer>(entryf.getValue(),ld));
+				  }
+			  }
+		  }
+		  this.tempVerticeEALD_map.putAll(this.CurverticeEALD_submap); //if exist already, then update value automatically
+		  
+		  //calculate the intersection arcs 
+		  this.CurIntersectionArc = new HashSet<Arc>(); //G'
+		  for(Map.Entry<Integer,Pair<Integer,Integer>> ventry : this.CurverticeEALD_submap.entrySet()){
+			  for(Map.Entry<Integer,List<Pair<Integer,Integer>>> target : GreedLS.graph.adjList.adjacencyList.get(ventry.getKey()).entrySet()){
+				  Arc arc = new Arc();
+				  arc.source = ventry.getKey();
+				  arc.target = target.getKey();
+				  arc.cost_value_list = target.getValue();
+				  if(this.CurverticeEALD_submap.containsKey(target.getKey())){
+					  this.CurIntersectionArc.add(arc);
+				  }
+			  }
+		  }
+		  /*Set<Arc> tempCAS = new HashSet<Arc>(); //Note the order. It is because SET function does not update value if existing. Sorry, no values need to be changed in CAS.
+		  tempCAS.addAll(this.CurIntersectionArc);
+		  tempCAS.addAll(this.CAS);
+		  this.CAS = tempCAS;*/
+		  this.tempCAS.addAll(this.CurIntersectionArc);
+	  }
+	  
+	
+	/**
+	 * calculate the earliest arrive time for each candidate arc
+	 * 
+	 * @param CAQ: candidate arc queue
+	 * @param v0: starting vertex
+	 * @param t0: starting time
+	 * @param b: budget
+	 */
+	  public Map<Integer,Integer> FWR(int vid0, int t0, int b) throws Exception{
+		  //Comparator<Map.Entry<Integer,Integer>> EAcomparator = new earliestArriveComparator();
+		  //PriorityQueue<Pair<Integer,Double>> Q = new PriorityQueue<Pair<Integer,Double>>(1, EAcomparator);
+		  Map<Integer,Integer> Q = new HashMap<Integer,Integer>();
+		  Map<Integer,Integer> result = new HashMap<Integer,Integer>();
+		  Q.put(vid0,  t0);
+		  result.put(vid0, t0);
+		  while(!Q.isEmpty()){
+			  Map.Entry<Integer, Integer> entryEA = getEarliestArriveEntry(Q);
+			  int vi = entryEA.getKey();
+			  int eai = entryEA.getValue();
+			  Q.remove(vi, eai);
+			  //List<Pair<Integer, List<Pair<Integer,Integer>>>> vjList = GreedLS.graph.adjList.adjacencyList.get(vi);
+			  if(GreedLS.graph.adjList.adjacencyList.containsKey(vi)){
+				  for(Map.Entry<Integer, List<Pair<Integer,Integer>>> vjpair : GreedLS.graph.adjList.adjacencyList.get(vi).entrySet()){
+					  if(this.verticeEALD_map.containsKey(vjpair.getKey())){ //----reduce the search space, search from V''
+						  int eaj = eai + (vjpair.getValue()).get(GreedLS.TimeCost2Idx(eai)).getLeft();
+						  if(eaj < t0+b){//----within the budget
+							  double vj_target_dist = this.EarthDistance(GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lat, GreedLS.graph.vertices.get(QuerySetting.TargetVexID).lng, GreedLS.graph.vertices.get(vjpair.getKey()).lat, GreedLS.graph.vertices.get(vjpair.getKey()).lng);
+							  if(eaj+vj_target_dist*GreedLS.speedMIN < t0+b){//----A* pruning
+								  if(!result.containsKey(vjpair.getKey())){
+									  result.put(vjpair.getKey(), eaj);
+									  if(!Q.containsKey(vjpair.getKey())) Q.put(vjpair.getKey(), eaj);
+									  else{
+										  int old_eaj = Q.get(vjpair.getKey());
+										  if(old_eaj>eaj) Q.replace(vjpair.getKey(), eaj);
+									  }
+								  }
+								  else{
+									  int old_eaj = result.get(vjpair.getKey());
+									  if(old_eaj > eaj){
+										  result.replace(vjpair.getKey(), old_eaj, eaj);
+										  if(Q.containsKey(vjpair.getKey())){
+											  Q.replace(vjpair.getKey(), eaj);
+										  }
+									  }
+								  }
+							  } //----A* pruning
+						  }
+							  
+					  }
+				  }
+			  }
+			  
+		  }//end while
+		  return result;
+	  }
+	  
+	  
+	  
+	  
+	  
+	  /**
+	   * calculate the latest leaving time for each candidate arc
+	   * 
+	   * @param CAQ: candidate arc queue
+	   * @param v0: starting vertex
+	   * @param t0: starting time
+	   * @param b: budget
+	   */
+	  public Map<Integer,Integer> BWR(int vidN, int t0, int b) throws Exception{
+		  //Comparator<Map.Entry<Integer,Integer>> LDcomparator = new latestDepartureComparator();
+		  Map<Integer,Integer> Q = new HashMap<Integer,Integer>();
+		  Map<Integer,Integer> result = new HashMap<Integer,Integer>();
+		  int tN = t0 + b;
+		  Q.put(vidN,  tN);
+		  result.put(vidN, t0+b);
+		  while(!Q.isEmpty()){
+			  Map.Entry<Integer, Integer> entryLD = getLatestDepartureEntry(Q);
+			  int vj = entryLD.getKey();
+			  int ldj = entryLD.getValue();
+			  Q.remove(vj, ldj);
+			  if(GreedLS.graph.adjList.reverse_adjacencyList.containsKey(vj)){
+				  for(Map.Entry<Integer, List<Pair<Integer,Integer>>> vipair : GreedLS.graph.adjList.reverse_adjacencyList.get(vj).entrySet()){ //reverse adjacency list
+					  int vi = vipair.getKey();
+					  if(this.verticeEALD_map.containsKey(vi)){ //---reduce the search space, search from V''
+						//--to find maximum time index Taok of the list L=vipair.getRight() such that L[Taok]+Taok <= ldj, and then ldi=ldj-L[Taok]
+						  int Taok = ldj;
+						  for(; Taok+ vipair.getValue().get(GreedLS.TimeCost2Idx(Taok)).getLeft()<ldj; Taok=Taok-GreedLS.costGranularity);
+						  int ldi = ldj - vipair.getValue().get(GreedLS.TimeCost2Idx(Taok)).getLeft();
+
+						  if(ldi > t0){ //---within the budget
+							  double source_vi_dist = this.EarthDistance(GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lat, GreedLS.graph.vertices.get(QuerySetting.SourceVexID).lng, GreedLS.graph.vertices.get(vi).lat, GreedLS.graph.vertices.get(vi).lng);
+							  if(ldi - source_vi_dist*GreedLS.speedMIN > t0){//---A* pruning
+								  if(!result.containsKey(vipair.getKey())){
+									  result.put(vipair.getKey(), ldi);
+									  if(!Q.containsKey(vipair.getKey())) Q.put(vipair.getKey(), ldi);
+									  else{
+										  int old_ldi = result.get(vipair.getKey());
+										  if(old_ldi < ldi) Q.replace(vipair.getKey(), ldi);
+									  }
+								  }
+								  else{
+									  int old_ldi = result.get(vipair.getKey());
+									  if(old_ldi < ldi){
+										  result.replace(vipair.getKey(), old_ldi, ldi);
+										  if(Q.containsKey(vipair.getKey())){
+											  Q.replace(vipair.getKey(), ldi);
+										  }
+									  }
+								  }
+							  }//---A* pruning
+							  
+						  }//---within the budget
+					  }
+				  }
+			  }
+			  
+		  }//end while
+		  return result;
+	  }
+	  
+	  
+	  public void printSolution(){
+		  //System.out.print("solution: total value: " + this.solution.totalValue + "\ttotal cost: " + this.solution.totalCost);
+		  GreedLS.outputWriter.print("solution: total value: " + this.solution.totalValue + "\ttotal cost: " + this.solution.totalCost);
+		  /*for(Gap gap : this.solution.gapList){ //---print the path of the solution
+			  System.out.print(", " + gap.start + " --- " + gap.end);
+		  }*/
+		  //System.out.println();
+		  GreedLS.outputWriter.println();
+	  }
+	  
+	  public Boolean InSolution(Arc arc){
+		  Gap pre_gap = new Gap();
+		  for(Gap gap : this.solution.gapList){
+			  if(pre_gap.start!=-1){
+				  if(pre_gap.end==arc.source && gap.start==arc.target) return true;
+			  }
+			  pre_gap = gap;
+			  //--check for the vertex list
+			  int preVid = -1;
+			  for(int vid : gap.vexIDList){
+				  if(preVid != -1){//remove from G''
+					  if(preVid==arc.source && vid==arc.target) return true;
+				  }//else do nothing
+				  preVid = vid;
+			  }
+		  }
+		  return false;
+	  }
+	  
+	  public Boolean GreedLSAlgorithm_OneIteration(int budget)throws Exception{
+		  		  
+		  Arc bestArc = new Arc();
+		  Gap bestGap = new Gap();
+		  //int bestDeltaValue = 0;
+		  //int bestDeltaCost = 0;
+		  Gap best_vi_vm = new Gap();
+		  Gap best_vn_vj = new Gap();
+		  double bestCriteria = 0 - Double.MAX_VALUE;
+		  
+		  this.tempCAS.clear();
+		  this.tempVerticeEALD_map.clear();
+		  for(Gap gap : this.solution.gapList){
+			  
+			  programCurTime = System.currentTimeMillis();
+			  this.calculateCandidateArcSet(gap, budget);
+			  GreedLS.calculateCandArcTime += System.currentTimeMillis() - programCurTime;
+			  
+			  
+			  /*programCurTime = System.currentTimeMillis();
+			  this.calculateCandidateArcSet_viaTDSP(gap, budget);
+			  GreedLS.calculateCandidateArcSet_viaTDSPTime += System.currentTimeMillis() - programCurTime;*/
+			  
+			  for(Arc candArc : this.CurIntersectionArc){
+				  //***double criteria = calculateCriteria(gap, candArc); //calculate the criteria for the candidate arc candArc
+				 if(InSolution(candArc)) continue;
+				  
+				 Vertex vi = GreedLS.graph.vertices.get(gap.start);
+				 Vertex vj = GreedLS.graph.vertices.get(gap.end);
+				 Vertex vm = GreedLS.graph.vertices.get(candArc.source);
+				 Vertex vn = GreedLS.graph.vertices.get(candArc.target);
+				 
+				 //************Select arcs based on httpSP
+				 /*programCurTime = System.currentTimeMillis();
+				 int starttime_vi_vm = this.CurverticeEALD_submap.get(vi.id).getLeft();
+				 Gap vi_vm = http.sendGet(vi, vm, GreedLS.TimeCost2Idx(starttime_vi_vm)); 
+				 int starttime_vn_vj_int = this.CurverticeEALD_submap.get(vm.id).getLeft();
+				 Gap vn_vj = http.sendGet(vn, vj, GreedLS.TimeCost2Idx(starttime_vn_vj_int));
+				 GreedLS.calculateCandArcTime += System.currentTimeMillis() - programCurTime;
+				 
+				 if(vi_vm.SPCost == Integer.MAX_VALUE || vn_vj.SPCost == Integer.MAX_VALUE) continue;
+				 
+				 List<Pair<Integer,Integer>> cost_value_list_vm_vn = GreedLS.graph.adjList.adjacencyList.get(candArc.source).get(candArc.target);
+				 int idx_vm = this.TimeCost2Idx(starttime_vi_vm + (int)vi_vm.SPCost);
+				 int new_value = vi_vm.collectedValue + vn_vj.collectedValue + cost_value_list_vm_vn.get(idx_vm).getRight();
+				 int deltaValue = new_value - gap.collectedValue;
+				 int new_cost = vi_vm.SPCost + vn_vj.SPCost + cost_value_list_vm_vn.get(idx_vm).getLeft();
+				 int deltaCost = new_cost - gap.SPCost;
+				 double criteria = ((double)deltaValue/GreedLS.valueMAX) / ((double)deltaCost/GreedLS.costMAX);*/ 
+				 //************
+				 
+				 //************Select based on the approximate costs/values -> Euclidean distance
+				 double vi_vm_dist = this.EarthDistance(vi.getLat(), vi.getLng(), vm.getLat(), vm.getLng());
+				 double vn_vj_dist = this.EarthDistance(vn.getLat(), vn.getLng(), vj.getLat(), vj.getLng());
+				 int starttime_vi_vm = gap.actualStarttime;
+				 int idx_vm = GreedLS.TimeCost2Idx(starttime_vi_vm + (int)(vi_vm_dist*GreedLS.speedAVG));
+				 int new_value = GreedLS.graph.adjList.adjacencyList.get(vm.getId()).get(vn.getId()).get(idx_vm).getRight();
+				 int deltaCost = (int)((vi_vm_dist + vn_vj_dist)*GreedLS.speedAVG) + GreedLS.graph.adjList.adjacencyList.get(vm.getId()).get(vn.getId()).get(idx_vm).getLeft() - gap.SPCost;
+				 int deltaValue = new_value - gap.collectedValue;
+				 double criteria = ((double)deltaValue/GreedLS.valueMAX) / ((double)deltaCost/GreedLS.costMAX);
+				 //************
+				 
+				 
+				  if(criteria > bestCriteria){
+					  bestCriteria = criteria;
+					  bestArc.copyArc(candArc);
+					  bestGap = gap;
+				  }
+			  }
+		  }
+		  
+		  if(bestArc.equalNULL()) {
+			  GreedLS.outputWriter.println("terminate algorithm since no arcs can be inserted.");
+			  //System.out.println("terminate algorithm since no arcs can be inserted.");
+			  return false;
+		  }
+		  
+		  //System.out.print("gap:(" + bestGap.start + ", " + bestGap.end + ")" + "\tcandArc:(" + bestArc.source + ", " + bestArc.target + ")\t");
+
+		  int starttime_vi_vm = this.tempVerticeEALD_map.get(bestArc.source).getLeft();
+		  int starttime_vn_vj_int = this.tempVerticeEALD_map.get(bestArc.target).getLeft();
+		  
+		  programCurTime = System.currentTimeMillis();
+		  best_vi_vm = findTDSP.tdsp(bestGap.start, bestArc.source, GreedLS.TimeCost2Idx(starttime_vi_vm)); 
+		  best_vn_vj = findTDSP.tdsp(bestArc.target, bestGap.end, GreedLS.TimeCost2Idx(starttime_vn_vj_int));
+		  GreedLS.httpSPTime += System.currentTimeMillis() - programCurTime;
+		  
+		  List<Pair<Integer,Integer>> cost_value_list_vm_vn = GreedLS.graph.adjList.adjacencyList.get(bestArc.source).get(bestArc.target);
+		  int idx_vm = GreedLS.TimeCost2Idx(starttime_vi_vm + (int)best_vi_vm.SPCost);
+		  int best_new_value = best_vi_vm.collectedValue + best_vn_vj.collectedValue + cost_value_list_vm_vn.get(idx_vm).getRight();
+		  int bestDeltaValue = best_new_value - bestGap.collectedValue;
+		  int best_new_cost = best_vi_vm.SPCost + best_vn_vj.SPCost + cost_value_list_vm_vn.get(idx_vm).getLeft();
+		  int bestDeltaCost = best_new_cost - bestGap.SPCost;
+		  
+		  if(bestDeltaValue>0 || bestDeltaCost<0){
+			  this.solution.insertArc(bestGap, best_vi_vm, best_vn_vj, bestDeltaValue, bestDeltaCost); //insert bestArc between the gap to update the solution
+			  //remove vertices and arcs inserted into solution from V'' and G''
+			  int preVid = -1;
+			  Arc arc;
+			  for(int vid : best_vi_vm.vexIDList){
+				  //if(this.tempVerticeEALD_map!=null) this.tempVerticeEALD_map.remove(vid); //remove from V''
+				  if(preVid != -1){//remove from G''
+					  arc = new Arc();
+					  arc.source = preVid;
+					  arc.target = vid;
+					  arc.cost_value_list = GreedLS.graph.adjList.adjacencyList.get(preVid).get(vid);
+					  this.tempCAS.remove(arc);
+				  }//else do nothing
+				  preVid = vid;
+				  
+			  }
+			  preVid = -1;
+			  
+		  }
+		  //System.out.print("\tCandidateArcSet size: " + this.CAS.size() + "\t");
+		  GreedLS.outputWriter.print("\tG size: " + this.CAS.size() + "\t");
+		  this.printSolution();
+		  
+		  
+		  this.CAS.clear();
+		  this.CAS.addAll(this.tempCAS); //--recalcuate
+		  this.verticeEALD_map.clear();
+		  this.verticeEALD_map.putAll(this.tempVerticeEALD_map); //--recalcuate
+		  this.newBudget = budget - bestDeltaCost; //to do: update the budget
+		  return true;
+		  //GreedLSAlgorithm( newBudget); //recursive -> iteration
+	  }
+	  
+	  
+	  public void GreedLSAlgorithm(int budget)throws Exception{
+		  //System.out.println("Max cost: " + GreedLS.costMAX + "\tMax value: " + GreedLS.valueMAX + "\tMax speed: " + GreedLS.speedMAX + "\tAvg speed: " + GreedLS.speedAVG);
+		  FileWriter fw = new FileWriter("C:/YingLu/PhD research/Scenic path/TDexp/results/output.txt", true);
+          BufferedWriter bw = new BufferedWriter(fw);
+		  GreedLS.outputWriter = new PrintWriter(bw);
+		  
+		  GreedLS.outputWriter.println("Query Setting:\n" + "source: " + QuerySetting.SourceVexID + "\ttarget: " + QuerySetting.TargetVexID + "\tstartTime: " + QuerySetting.startTime + "\tTDSP: " + QuerySetting.SPCost + "\tbudget: " + QuerySetting.budgetTime/QuerySetting.SPCost*100 + "% SP" + "\tSPValue: " + QuerySetting.SPValue);
+		  
+		  String queryFilestr = "C:/Users/Ying Lu/Dropbox/TD scenic path - exp/FindOptValues/queries.txt";
+		  List<String> querylines = Files.readAllLines(Paths.get(queryFilestr), StandardCharsets.UTF_8);
+		  for(String stpair : querylines){
+			  GreedLS.outputWriter.println("\n\n\n\n------------------");
+			  QuerySetting.SourceVexID = Integer.parseInt( stpair.substring(0, stpair.indexOf(',')) );
+			  QuerySetting.TargetVexID = Integer.parseInt( stpair.substring(stpair.indexOf(',')+1) );
+			  Gap sp = new Gap();
+			  sp = findTDSP.tdsp(QuerySetting.SourceVexID, QuerySetting.TargetVexID, GreedLS.Idx2TimeCost(QuerySetting.startTime));
+			  
+			  for(double BPercent = 1.5; BPercent<=3; BPercent=BPercent+0.5){
+				  double budgetDouble = BPercent*sp.SPCost;
+				  this.newBudget = (int)budgetDouble;
+				  
+				  while(true){
+					//--initialize all the data structures / variables
+					  this.solution.empty();
+					  GreedLS.curMaxScenicValue = 0 - Integer.MAX_VALUE;
+					  //SPcosts_candV2Target.clear();
+					//--finish initialization
+						
+					  this.copyFromGraph();
+					  this.initSolution();
+					  this.programStartTime = System.currentTimeMillis(); //---------begin timing
+					  
+					  //System.out.print("iterationNUM: " + iterationNUM + "\t");
+					  GreedLS.outputWriter.print("Iter: " + iterationNUM + "\t");
+					  iterationNUM ++;
+					  
+					  programCurTime = System.currentTimeMillis();
+					  long runningTime = programCurTime-programStartTime;
+					  //System.out.print("Time: " + runningTime + "\t");
+					  GreedLS.outputWriter.print("TotalProcessTimeSofar: " + runningTime + "\t");
+					  
+					  
+					  GreedLS.outputWriter.print("calculateCandArcTime: " + GreedLS.calculateCandArcTime + "\t");
+					  //GreedLS.outputWriter.print("calculateCandidateArcSet_viaTDSPTime: " + GreedLS.calculateCandidateArcSet_viaTDSPTime + "\t");
+					  GreedLS.calculateCandArcTime = 0;
+					  //GreedLS.calculateCandidateArcSet_viaTDSPTime = 0;
+					  
+					  GreedLS.outputWriter.print("2TDSPTime: " + GreedLS.httpSPTime + "\t");
+					  GreedLS.httpSPTime = 0;
+					  
+					  if(runningTime > 100 * 10 * 1000) {
+						  //System.out.println("Terminate search algorithm");
+						  GreedLS.outputWriter.print("Terminate search algorithm");
+						  GreedLS.outputWriter.close();
+						  break; //terminate in 5 seconds
+					  }
+					  if(this.GreedLSAlgorithm_OneIteration(this.newBudget)==false) {
+						  GreedLS.outputWriter.close();
+						  break;
+					  }
+				  }//end while true/iteration
+				  GreedLS.outputWriter.println("\n\n------------------");
+			  }//end for each query budget setting
+		  }//end for each queryline
+	  }
+	  
+	  
+	
+		
+}

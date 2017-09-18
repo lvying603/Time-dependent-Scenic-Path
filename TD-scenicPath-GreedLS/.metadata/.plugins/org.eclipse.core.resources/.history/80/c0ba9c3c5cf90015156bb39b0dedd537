@@ -1,0 +1,60 @@
+package greedLS;
+
+/**
+ * Class Node. Cost and ArrTime are used interchangablely, I kept them for compatibility with
+ * Ugur's code dist is of no use.
+ * 
+ * @author Dingxiong
+ */
+public class TDSPNode implements Comparable<TDSPNode> {
+	  private int nodeId, cost, arrTime;
+	  
+	  TDSPNode(int id, int c, int t) {
+		  nodeId = id;
+		  cost = c;
+		  arrTime = t;
+		  // dist = new Vector(10, 5);
+		}
+		
+	  TDSPNode(int id, int t){
+		  cost = t;
+		  arrTime = t;
+		  // dist = new Vector(10, 5);
+		}
+	  
+	  TDSPNode(){
+		  nodeId = -1;
+		  cost = 0;
+		  arrTime = 0;
+		  // dist = new Vector(10, 5);
+		}
+		
+		public int getNodeId() {
+		  return nodeId;
+		}
+		
+		public int getCost() {
+		  return cost;
+		}
+		
+		public int getArrTime() {
+		  return arrTime;
+		}
+		
+		public void setArrTime(int t) {
+		  arrTime = t;
+		}
+		
+		public void setCost(int t) {
+		  cost = t;
+		}
+		
+		// private Vector dist; // denoted by 'c' in the algorithm
+		
+		@Override
+		public int compareTo(TDSPNode o) {
+		  // TODO Auto-generated method stub
+		  return this.cost - o.cost;
+		}
+
+}

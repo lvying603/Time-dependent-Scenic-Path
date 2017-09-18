@@ -1,0 +1,26 @@
+package greedLS;
+
+
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+	
+	public static void main(String[] args) throws Exception {
+		
+		GreedLS greedLS = new GreedLS();
+		greedLS.copyFromGraph();
+		greedLS.initSolution();
+		
+		greedLS.programStartTime = System.currentTimeMillis(); //---------begin timing
+		greedLS.GreedLSAlgorithm(QuerySetting.budgetTime);
+		
+		
+		
+		//---to find the optimal values
+		/*GraphFindAllPaths allPaths = new GraphFindAllPaths();
+		allPaths.printAllPaths(QuerySetting.SourceVexID, QuerySetting.TargetVexID);*/
+	}
+}

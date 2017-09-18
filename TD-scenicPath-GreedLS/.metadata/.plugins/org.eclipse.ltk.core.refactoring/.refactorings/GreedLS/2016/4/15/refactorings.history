@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring accessors="true" comment="Delete 3 elements from project &apos;GreedLS&apos;&#x0D;&#x0A;- Original project: &apos;GreedLS&apos;&#x0D;&#x0A;- Original elements:&#x0D;&#x0A;     GraphFindAllPaths-backup-calculateonthefly.java~&#x0D;&#x0A;     GraphFindAllPaths-backup.java~&#x0D;&#x0A;     TDSPNode.java" description="Delete elements" element1="src/greedLS/TDSPNode.java" element2="src/greedLS/GraphFindAllPaths-backup.java~" element3="src/greedLS/GraphFindAllPaths-backup-calculateonthefly.java~" elements="0" flags="589830" id="org.eclipse.jdt.ui.delete" resources="3" stamp="1459661025419" subPackages="false" version="1.0"/>
+</session>

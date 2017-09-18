@@ -1,0 +1,36 @@
+package greedLS;
+
+
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+	
+	public static void main(String[] args) throws Exception {
+		
+		String queries = "queries_sp5mins";
+		//String queries = "queries_sp20mins";
+		
+		String method = "Greedy"; //for best arc selection
+		//String method = "GRASP";
+		
+		String startSolution = "NULL";
+		//String startSolution = "SP";
+		
+		//String criteriaCostComputation = "TDSP";
+		String criteriaCostComputation = "Euclidean";
+		//String criteriaCostComputation = "EALD";
+		
+		if(criteriaCostComputation == "EALD"){
+		}
+		else{
+			GreedLS greedLS = new GreedLS();
+			greedLS.queries = queries;
+			greedLS.startSolution = startSolution;
+			greedLS.criteriaCostComputation = criteriaCostComputation;
+			greedLS.GreedLSAlgorithm(QuerySetting.budgetTime);
+		}
+	}
+}

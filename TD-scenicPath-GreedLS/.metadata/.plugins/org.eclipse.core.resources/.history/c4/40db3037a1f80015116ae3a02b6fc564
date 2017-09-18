@@ -1,0 +1,14 @@
+package greedLS;
+
+public class QuerySetting {
+	/*public static final double SourceLat = 34.0204524;
+	public static final double SourceLng = -118.280982;
+	public static final double TargetLat = 34.0194543;
+	public static final double TargetLng = -118.4911912;*/
+	public static int SourceVexID = 233; //0; //233;
+	public static int TargetVexID = 757; //2;//757;//987; //419; 552
+	public static int startTime = 1 ; //Index. it will be computed to be time cost during initialize the solution.
+	public static int budgetTime = 10*60*1000;//72420;//21402; 92393;//247730; //4*60*1000; //1min
+	public static int SPCost = 0;
+	public static int SPValue = 0;
+}

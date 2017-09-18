@@ -1,0 +1,24 @@
+package greedLS;
+
+import java.util.LinkedList;
+import java.util.List;
+
+public class Solution {
+	public List<Gap> gapList;
+	public int totalCost; //millisecond
+	public int totalValue; //photo#
+	
+	Solution(){
+		this.gapList = new LinkedList<Gap>();
+		this.totalCost = 0;
+		this.totalValue = 0;
+	}
+	
+	public void insertArc(Gap gap, Gap best_vi_vm, Gap best_vn_vj, int deltaValue, double deltaCost){
+		this.gapList.add(this.gapList.indexOf(gap), best_vi_vm);
+		this.gapList.add(this.gapList.indexOf(gap), best_vn_vj);
+		this.gapList.remove(gap);
+		this.totalCost += deltaCost;
+		this.totalValue += deltaValue;
+	}
+}
